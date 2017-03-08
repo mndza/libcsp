@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <csp/csp_debug.h>
 #include <csp/csp_interface.h>
 #include <csp/arch/csp_thread.h>
+#include <csp/arch/csp_semaphore.h>
 #include <csp/interfaces/csp_if_zmqhub.h>
 
 /* ZMQ */
@@ -33,6 +34,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 static void * context;
 static void * publisher;
 static void * subscriber;
+static csp_mutex_t pub_mutex;
 
 /**
  * Interface transmit function
@@ -50,7 +52,13 @@ int csp_zmqhub_tx(csp_iface_t * interface, csp_packet_t * packet, uint32_t timeo
 	uint16_t length = packet->length;
 	char * satidptr = ((char *) &packet->id) - 1;
 	memcpy(satidptr, &satid, 1);
+
+	if (csp_mutex_lock(&pub_mutex, timeout) != CSP_MUTEX_OK) {
+		return CSP_ERR_TIMEDOUT;
+	}
 	int result = zmq_send(publisher, satidptr, length + sizeof(packet->id) + sizeof(char), 0);
+	csp_mutex_unlock(&pub_mutex);
+
 	if (result < 0)
 		csp_log_error("ZMQ send error: %u %s\r\n", result, strerror(result));
 
@@ -128,11 +136,12 @@ int csp_zmqhub_init_w_endpoints(char _addr, char * publisher_endpoint,
     publisher = zmq_socket(context, ZMQ_PUB);
     assert(publisher);
     assert(zmq_connect(publisher, publisher_endpoint) == 0);
+    assert(csp_mutex_create(&pub_mutex) == CSP_MUTEX_OK);
 
     /* Subscriber (RX) */
     subscriber = zmq_socket(context, ZMQ_SUB);
     assert(subscriber);
-	assert(zmq_connect(subscriber, subscriber_endpoint) == 0);
+    assert(zmq_connect(subscriber, subscriber_endpoint) == 0);
 
 	if (addr == (char) 255) {
 		assert(zmq_setsockopt(subscriber, ZMQ_SUBSCRIBE, "", 0) == 0);
