@@ -49,7 +49,7 @@ int csp_zmqhub_tx(csp_iface_t * interface, csp_packet_t * packet, uint32_t timeo
 	if (satid == (char) 255)
 		satid = packet->id.dst;
 
-	uint16_t length = packet->length + sizeof(packet->id) + sizeof(char);
+	size_t length = packet->length + sizeof(packet->id) + sizeof(char);
 	char * envelope = ((char *) &packet->id) - 1;
 	envelope[0] = satid;
 
