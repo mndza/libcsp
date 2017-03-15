@@ -49,14 +49,14 @@ int csp_zmqhub_tx(csp_iface_t * interface, csp_packet_t * packet, uint32_t timeo
 	if (satid == (char) 255)
 		satid = packet->id.dst;
 
-	uint16_t length = packet->length;
-	char * satidptr = ((char *) &packet->id) - 1;
-	memcpy(satidptr, &satid, 1);
+	uint16_t length = packet->length + sizeof(packet->id) + sizeof(char);
+	char * envelope = ((char *) &packet->id) - 1;
+	envelope[0] = satid;
 
 	if (csp_mutex_lock(&pub_mutex, timeout) != CSP_MUTEX_OK) {
 		return CSP_ERR_TIMEDOUT;
 	}
-	int result = zmq_send(publisher, satidptr, length + sizeof(packet->id) + sizeof(char), 0);
+	int result = zmq_send(publisher, envelope, length, 0);
 	csp_mutex_unlock(&pub_mutex);
 
 	if (result < 0)
